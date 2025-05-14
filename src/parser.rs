@@ -131,4 +131,25 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn nested_loops() -> Result<()> {
+        // "[[]]"
+        let tokens = vec![
+            Token::LoopStart,
+            Token::LoopStart,
+            Token::LoopEnd,
+            Token::LoopEnd,
+        ];
+        let ast = parse(&tokens)?;
+        assert_eq!(ast, vec![ASTNode::Loop(vec![ASTNode::Loop(vec![])])]);
+        Ok(())
+    }
+
+    #[test]
+    fn unbalanced() {
+        // "["
+        let tokens = vec![Token::LoopStart];
+        assert!(parse(&tokens).is_err())
+    }
 }

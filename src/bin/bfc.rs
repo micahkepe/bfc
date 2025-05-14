@@ -1,6 +1,6 @@
-//! # Brainfuck Compiler (`bcf`)
+//! # Brainf%ck Compiler (`bcf`)
 //!
-//! A Brainfuck compiler targeting x86-64 ISA.
+//! A Brainf%ck compiler targeting x86-64 ISA.
 use anyhow::{Context, Result};
 use clap::Parser;
 use clap_verbosity_flag::Verbosity;
@@ -9,19 +9,16 @@ use std::fs;
 use bfc::*;
 
 #[derive(Parser, Debug)]
+#[command(about = "Brainf*ck compiler targeting x86-64", version)]
 struct Args {
-    /// The path string to the Brainfuck source file
-    #[arg(short, long)]
+    /// The path string to the Brainf%ck source file
     input: std::path::PathBuf,
-
     /// The path string to the output executable
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "a.out")]
     output: std::path::PathBuf,
-
     /// Verbosity flag
     #[command(flatten)]
     verbosity: Verbosity,
-
     /// Whether to assemble, link, and run the generated '.asm' file
     #[arg(short, long)]
     execute: bool,
@@ -50,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ast = parser::parse(&tokens)?;
     log::debug!("AST: {:?}", &ast);
 
-    // TODO: Generate x86-64 code
+    // TODO: Generate target code
 
     // TODO: Execute flag handling
     // if args.execute {...}
