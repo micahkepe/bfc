@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Instantiate the logger
     env_logger::Builder::new()
-        .filter_level(args.verbosity.into())
+        .filter_level(args.verbosity.log_level_filter())
         .init();
 
     log::debug!("path: {:?}, output: {:?}", args.input, args.output);

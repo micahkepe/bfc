@@ -14,6 +14,15 @@ impl AsmTarget {
         AsmTarget { output_path }
     }
 
+    /// returns true if any node (even nested in loops) is `Read`
+    fn contains_read(nodes: &[ASTNode]) -> bool {
+        nodes.iter().any(|n| match n {
+            ASTNode::Read => true,
+            ASTNode::Loop(body) => AsmTarget::contains_read(body),
+            _ => false,
+        })
+    }
+
     fn generate_nodes(file: &mut File, nodes: &[ASTNode], loop_counter: &mut usize) -> Result<()> {
         let mut i = 0;
         while i < nodes.len() {
@@ -78,10 +87,11 @@ impl AsmTarget {
                     writeln!(file, "    syscall")?;
                 }
                 ASTNode::Read => {
-                    writeln!(file, "    mov rax, 0x2000003")?; // sys_read on macOS
-                    writeln!(file, "    mov rdi, 0")?;
-                    writeln!(file, "    mov rsi, r12")?;
-                    writeln!(file, "    mov rdx, 1")?;
+                    // read one byte into [r12]
+                    writeln!(file, "    mov rax, 0x2000003")?; // sys_read
+                    writeln!(file, "    mov rdi, 0")?; // stdin
+                    writeln!(file, "    mov rsi, r12")?; // buffer
+                    writeln!(file, "    mov rdx, 1")?; // count
                     writeln!(file, "    syscall")?;
                 }
                 ASTNode::Loop(ref body) => {
@@ -107,12 +117,26 @@ impl CodegenTarget for AsmTarget {
             .with_context(|| format!("Failed to create output file: {:?}", self.output_path))?;
 
         // Write assembly header
+        writeln!(file, "section .data")?;
+        writeln!(file, "read_msg:    db 'Read: '")?;
+        writeln!(file, "read_msg_end:")?;
+
         writeln!(file, "section .text")?;
         writeln!(file, "global _main")?;
         writeln!(file, "align 16")?;
         writeln!(file, "_main:")?;
         writeln!(file, "    sub rsp, 30000")?; // Allocate 30,000 bytes on stack for tape
         writeln!(file, "    mov r12, rsp")?; // Point r12 to tape start
+
+        if AsmTarget::contains_read(ast) {
+            // Input prompt "'Read: '"
+            writeln!(file, "    ; — debug: print \"Read: \" once —")?;
+            writeln!(file, "    mov rax, 0x2000004")?; // sys_write
+            writeln!(file, "    mov rdi, 2")?; // stderr
+            writeln!(file, "    lea rsi, [rel read_msg]")?; // pointer
+            writeln!(file, "    mov rdx, read_msg_end - read_msg")?; // length = 6
+            writeln!(file, "    syscall")?;
+        }
 
         // Generate code for AST
         let mut loop_counter = 0;
@@ -129,6 +153,14 @@ impl CodegenTarget for AsmTarget {
         writeln!(file, "    mov rax, 0x2000001")?; // sys_exit
         writeln!(file, "    mov rdi, 1")?; // Exit code 1
         writeln!(file, "    syscall")?;
+
+        // Read error handler
+        writeln!(file, "read_error:")?;
+        writeln!(file, "    mov byte [r12], 0")?; // Set to 0 on error
+        writeln!(file, "    jmp read_done")?;
+        writeln!(file, "read_eof:")?;
+        writeln!(file, "    mov byte [r12], 0")?; // Set to 0 on EOF
+        writeln!(file, "read_done:")?;
 
         Ok(())
     }

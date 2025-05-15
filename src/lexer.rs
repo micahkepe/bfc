@@ -26,22 +26,53 @@ pub enum Token {
 
 /// Tokenizes an input stream of characters into a stream of `Token` values
 pub fn tokenize(input: &str) -> Vec<Token> {
-    input
-        .chars()
-        .filter_map(|c| match c {
-            '+' => Some(Token::Increment),
-            '-' => Some(Token::Decrement),
-            '<' => Some(Token::MoveLeft),
-            '>' => Some(Token::MoveRight),
-            ',' => Some(Token::Read),
-            '.' => Some(Token::Write),
-            '[' => Some(Token::LoopStart),
-            ']' => Some(Token::LoopEnd),
-            // any non-BF instructions are ignored (e.g. whitespaces, comments,
-            // etc.)
-            _ => None,
-        })
-        .collect()
+    // Make peekable so that we can see characters ahead of current position
+    // without consuming them
+    let mut iter = input.chars().peekable();
+
+    // Skip any leading whitespace and comment loops at beginning of the
+    // program.
+    loop {
+        // skip whitespace
+        while matches!(iter.peek(), Some(c) if c.is_whitespace()) {
+            iter.next();
+        }
+        // if it’s a '[' then treat it as a comment‑loop and skip until its
+        // matching ']'
+        if let Some('[') = iter.peek() {
+            let mut depth = 0;
+            for ch in iter.by_ref() {
+                match ch {
+                    '[' => depth += 1,
+                    ']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // check for additional leading comment loop
+            continue;
+        }
+        // past the prelude — stop skipping
+        break;
+    }
+
+    // filter BF tokens from the remainder
+    iter.filter_map(|c| match c {
+        '+' => Some(Token::Increment),
+        '-' => Some(Token::Decrement),
+        '<' => Some(Token::MoveLeft),
+        '>' => Some(Token::MoveRight),
+        ',' => Some(Token::Read),
+        '.' => Some(Token::Write),
+        '[' => Some(Token::LoopStart),
+        ']' => Some(Token::LoopEnd),
+        _ => None,
+    })
+    .collect()
 }
 
 #[cfg(test)]
@@ -50,9 +81,10 @@ mod tests {
 
     #[test]
     fn add_two() {
-        let program = "[->+<]";
+        let program = "+[->+<]";
         assert_eq!(
             vec![
+                Token::Increment,
                 Token::LoopStart,
                 Token::Decrement,
                 Token::MoveRight,
@@ -81,6 +113,6 @@ mod tests {
             program since it will continue immediate since the current cell for\
             the start of the loop is initially 0\
             ]";
-        assert_eq!(vec![Token::LoopStart, Token::LoopEnd], tokenize(program))
+        assert_eq!(Vec::<Token>::new(), tokenize(program))
     }
 }
