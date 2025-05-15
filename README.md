@@ -9,6 +9,11 @@ From [Wikipedia](https://en.wikipedia.org/wiki/Brainfuck):
 > Urban Müller. Designed to be extremely minimalistic, the language consists
 > of only eight simple commands, a data pointer, and an instruction pointer.
 
+<div align="center">
+    <img src="./assets/img/bcf-output.png" alt="Screenshot of bcf output"
+        width="75%">
+</div>
+
 ## ⚙️ Installation
 
 ```bash
