@@ -5,8 +5,9 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use clap_verbosity_flag::Verbosity;
 use std::fs;
+use std::process::Command;
 
-use bfc::*;
+use bfc::{codegen::CodegenTarget, *};
 
 #[derive(Parser, Debug)]
 #[command(about = "Brainf*ck compiler targeting x86-64", version)]
@@ -19,7 +20,7 @@ struct Args {
     /// Verbosity flag
     #[command(flatten)]
     verbosity: Verbosity,
-    /// Whether to assemble, link, and run the generated '.asm' file
+    /// Whether to assemble and link the generated '.asm' file
     #[arg(short, long)]
     execute: bool,
 }
@@ -47,10 +48,59 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ast = parser::parse(&tokens)?;
     log::debug!("AST: {:?}", &ast);
 
-    // TODO: Generate target code
+    // Generate x86-64 code
+    let asm_target = codegen::asm::AsmTarget::new(args.output.with_extension("asm"));
+    asm_target.generate(&ast)?;
 
-    // TODO: Execute flag handling
-    // if args.execute {...}
+    // Execute flag handling
+    if args.execute {
+        // Assemble
+        let asm_file = args.output.with_extension("asm");
+        let obj_file = args.output.with_extension("o");
+        let status = Command::new("nasm")
+            .args([
+                "-f",
+                "macho64",
+                asm_file.to_str().unwrap(),
+                "-o",
+                obj_file.to_str().unwrap(),
+            ])
+            .status()
+            .context("Failed to run `nasm`")?;
+        if !status.success() {
+            return Err(anyhow::anyhow!("Assembly failed").into());
+        }
+
+        // Link
+        let mut clang_args = vec![
+            "-arch",
+            "x86_64",
+            "-e",
+            "_main",
+            "-o",
+            args.output.to_str().unwrap(),
+            obj_file.to_str().unwrap(),
+        ];
+        if args.verbosity.is_present() {
+            clang_args.insert(0, "-v");
+        }
+        let status = Command::new("clang")
+            .args([
+                "-g",
+                "-arch",
+                "x86_64",
+                "-e",
+                "_main",
+                "-o",
+                args.output.to_str().unwrap(),
+                obj_file.to_str().unwrap(),
+            ])
+            .status()
+            .context("Failed to run clang")?;
+        if !status.success() {
+            return Err(anyhow::anyhow!("Linking failed").into());
+        }
+    }
 
     Ok(())
 }
